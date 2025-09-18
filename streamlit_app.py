@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 @st.cache_resource
 def get_connection():
     try:
-        db_path = "db/SJ_TM2360E.sqlite3"
+        db_path = "db/SJ_TM2360E_v2.sqlite3"
         conn = sqlite3.connect(db_path, check_same_thread=False)
         return conn
     except Exception as e:
