@@ -17,7 +17,7 @@ def get_connection():
     except Exception as e:
         st.error(f"데이터베이스 연결에 실패했습니다: {e}")
         return None
-table_name ="my_csv_data"
+# table_name ="my_csv_data"
 # Function to read data from DB with date filter
 def read_data_from_db(conn, table_name, start_date=None, end_date=None, date_col=None):
     try:
@@ -179,7 +179,7 @@ def main():
         df_all_data = pd.read_sql_query("SELECT * FROM my_csv_data;", conn)
         df_all_data = df_all_data.replace('N/A', np.nan)
     except Exception as e:
-        st.error(f"데이터베이스에서 'historyinspection' 테이블을 불러오는 중 오류가 발생했습니다: {e}")
+        st.error(f"데이터베이스에서 'my_csv_data' 테이블을 불러오는 중 오류가 발생했습니다: {e}")
         return
 
     try:
