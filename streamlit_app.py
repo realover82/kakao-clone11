@@ -8,11 +8,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # SQLite 연결 함수
-@st.cache_resource(check_same_thread=False)
+@st.cache_resource
 def get_connection():
     try:
         db_path = "db/SJ_TM2360E.sqlite3"
-        conn = sqlite3.connect(db_path)
+        # check_same_thread=False 인수를 sqlite3.connect 함수에 직접 전달
+        conn = sqlite3.connect(db_path, check_same_thread=False)
         return conn
     except Exception as e:
         st.error(f"데이터베이스 연결에 실패했습니다: {e}")
@@ -39,7 +40,6 @@ def analyze_data(df):
     
     df = df.replace('N/A', np.nan)
     
-    # PcbStartTime 컬럼이 존재할 경우에만 날짜 변환
     if 'PcbStartTime' in df.columns:
         df['PcbStartTime'] = pd.to_datetime(df['PcbStartTime'], errors='coerce')
 
@@ -176,16 +176,28 @@ def main():
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Func 분석"])
 
     try:
+        # 모든 탭에서 공통으로 사용할 원본 데이터를 한 번만 불러옵니다.
+        df_all_data = read_data_from_db(conn, "historyinspection")
+        if df_all_data is None:
+            st.error("데이터베이스에서 'historyinspection' 테이블을 찾을 수 없습니다. 앱을 실행할 수 없습니다.")
+            return
+
         with tab1:
             st.header("파일 PCB (Pcb_Process)")
-            # PCB 탭의 날짜 필터 추가
-            start_date_pcb = st.date_input("PCB 분석 시작 날짜", value=datetime.now().date(), key="date_pcb")
-            if st.button("파일 PCB 분석 실행", key="analyze_pcb"):
-                with st.spinner("데이터 분석 및 저장 중..."):
-                    df = read_data_from_db(conn, "historyinspection", start_date=start_date_pcb, end_date=start_date_pcb, date_col='PcbStartTime')
-                    if df is not None:
-                        st.session_state.analysis_results['pcb'] = df
-                        st.session_state.analysis_data['pcb'] = analyze_data(df, [])
+            # PCB 관련 필터
+            col_date, col_button = st.columns([0.8, 0.2])
+            with col_date:
+                selected_date = st.date_input("날짜 선택", value=datetime.now().date(), key="date_pcb")
+            with col_button:
+                st.markdown("---")
+                if st.button("분석 실행", key="analyze_pcb"):
+                    with st.spinner("데이터 분석 및 저장 중..."):
+                        df_filtered = df_all_data.copy()
+                        df_filtered['PcbStartTime'] = pd.to_datetime(df_filtered['PcbStartTime'], errors='coerce')
+                        df_filtered = df_filtered[df_filtered['PcbStartTime'].dt.date == selected_date]
+                        
+                        st.session_state.analysis_results['pcb'] = df_filtered
+                        st.session_state.analysis_data['pcb'] = analyze_data(df_filtered, [])
                         st.session_state.analysis_time['pcb'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     st.success("분석 완료! 결과가 저장되었습니다.")
             
@@ -194,14 +206,20 @@ def main():
 
         with tab2:
             st.header("파일 Fw (Fw_Process)")
-            # Fw 탭의 날짜 필터 추가
-            start_date_fw = st.date_input("Fw 분석 시작 날짜", value=datetime.now().date(), key="date_fw")
-            if st.button("파일 Fw 분석 실행", key="analyze_fw"):
-                with st.spinner("데이터 분석 및 저장 중..."):
-                    df = read_data_from_db(conn, "historyinspection", start_date=start_date_fw, end_date=start_date_fw, date_col='FwStamp')
-                    if df is not None:
-                        st.session_state.analysis_results['fw'] = df
-                        st.session_state.analysis_data['fw'] = analyze_data(df, [])
+            # Fw 관련 필터
+            col_date, col_button = st.columns([0.8, 0.2])
+            with col_date:
+                selected_date = st.date_input("날짜 선택", value=datetime.now().date(), key="date_fw")
+            with col_button:
+                st.markdown("---")
+                if st.button("분석 실행", key="analyze_fw"):
+                    with st.spinner("데이터 분석 및 저장 중..."):
+                        df_filtered = df_all_data.copy()
+                        df_filtered['FwStamp'] = pd.to_datetime(df_filtered['FwStamp'], errors='coerce')
+                        df_filtered = df_filtered[df_filtered['FwStamp'].dt.date == selected_date]
+
+                        st.session_state.analysis_results['fw'] = df_filtered
+                        st.session_state.analysis_data['fw'] = analyze_data(df_filtered, [])
                         st.session_state.analysis_time['fw'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     st.success("분석 완료! 결과가 저장되었습니다.")
 
@@ -210,14 +228,20 @@ def main():
 
         with tab3:
             st.header("파일 RfTx (RfTx_Process)")
-            # RfTx 탭의 날짜 필터 추가
-            start_date_rftx = st.date_input("RfTx 분석 시작 날짜", value=datetime.now().date(), key="date_rftx")
-            if st.button("파일 RfTx 분석 실행", key="analyze_rftx"):
-                with st.spinner("데이터 분석 및 저장 중..."):
-                    df = read_data_from_db(conn, "historyinspection", start_date=start_date_rftx, end_date=start_date_rftx, date_col='RfTxStamp')
-                    if df is not None:
-                        st.session_state.analysis_results['rftx'] = df
-                        st.session_state.analysis_data['rftx'] = analyze_data(df, [])
+            # RfTx 관련 필터
+            col_date, col_button = st.columns([0.8, 0.2])
+            with col_date:
+                selected_date = st.date_input("날짜 선택", value=datetime.now().date(), key="date_rftx")
+            with col_button:
+                st.markdown("---")
+                if st.button("분석 실행", key="analyze_rftx"):
+                    with st.spinner("데이터 분석 및 저장 중..."):
+                        df_filtered = df_all_data.copy()
+                        df_filtered['RfTxStamp'] = pd.to_datetime(df_filtered['RfTxStamp'], errors='coerce')
+                        df_filtered = df_filtered[df_filtered['RfTxStamp'].dt.date == selected_date]
+
+                        st.session_state.analysis_results['rftx'] = df_filtered
+                        st.session_state.analysis_data['rftx'] = analyze_data(df_filtered, [])
                         st.session_state.analysis_time['rftx'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     st.success("분석 완료! 결과가 저장되었습니다.")
 
@@ -226,14 +250,20 @@ def main():
 
         with tab4:
             st.header("파일 Semi (SemiAssy_Process)")
-            # Semi 탭의 날짜 필터 추가
-            start_date_semi = st.date_input("Semi 분석 시작 날짜", value=datetime.now().date(), key="date_semi")
-            if st.button("파일 Semi 분석 실행", key="analyze_semi"):
-                with st.spinner("데이터 분석 및 저장 중..."):
-                    df = read_data_from_db(conn, "historyinspection", start_date=start_date_semi, end_date=start_date_semi, date_col='SemiAssyStartTime')
-                    if df is not None:
-                        st.session_state.analysis_results['semi'] = df
-                        st.session_state.analysis_data['semi'] = analyze_data(df, [])
+            # Semi 관련 필터
+            col_date, col_button = st.columns([0.8, 0.2])
+            with col_date:
+                selected_date = st.date_input("날짜 선택", value=datetime.now().date(), key="date_semi")
+            with col_button:
+                st.markdown("---")
+                if st.button("분석 실행", key="analyze_semi"):
+                    with st.spinner("데이터 분석 및 저장 중..."):
+                        df_filtered = df_all_data.copy()
+                        df_filtered['SemiAssyStartTime'] = pd.to_datetime(df_filtered['SemiAssyStartTime'], errors='coerce')
+                        df_filtered = df_filtered[df_filtered['SemiAssyStartTime'].dt.date == selected_date]
+
+                        st.session_state.analysis_results['semi'] = df_filtered
+                        st.session_state.analysis_data['semi'] = analyze_data(df_filtered, [])
                         st.session_state.analysis_time['semi'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     st.success("분석 완료! 결과가 저장되었습니다.")
 
@@ -242,14 +272,20 @@ def main():
 
         with tab5:
             st.header("파일 Func (Func_Process)")
-            # Func 탭의 날짜 필터 추가
-            start_date_func = st.date_input("Func 분석 시작 날짜", value=datetime.now().date(), key="date_func")
-            if st.button("파일 Func 분석 실행", key="analyze_func"):
-                with st.spinner("데이터 분석 및 저장 중..."):
-                    df = read_data_from_db(conn, "historyinspection", start_date=start_date_func, end_date=start_date_func, date_col='BatadcStamp')
-                    if df is not None:
-                        st.session_state.analysis_results['func'] = df
-                        st.session_state.analysis_data['func'] = analyze_data(df, [])
+            # Func 관련 필터
+            col_date, col_button = st.columns([0.8, 0.2])
+            with col_date:
+                selected_date = st.date_input("날짜 선택", value=datetime.now().date(), key="date_func")
+            with col_button:
+                st.markdown("---")
+                if st.button("분석 실행", key="analyze_func"):
+                    with st.spinner("데이터 분석 및 저장 중..."):
+                        df_filtered = df_all_data.copy()
+                        df_filtered['BatadcStamp'] = pd.to_datetime(df_filtered['BatadcStamp'], errors='coerce')
+                        df_filtered = df_filtered[df_filtered['BatadcStamp'].dt.date == selected_date]
+                    
+                        st.session_state.analysis_results['func'] = df_filtered
+                        st.session_state.analysis_data['func'] = analyze_data(df_filtered, [])
                         st.session_state.analysis_time['func'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     st.success("분석 완료! 결과가 저장되었습니다.")
             
