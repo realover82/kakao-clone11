@@ -8,10 +8,11 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # SQLite 연결 함수
-@st.cache_resource(check_same_thread=False)
+@st.cache_resource
 def get_connection():
     try:
-        db_path = "db/SJ_TM2360E.sqlite3"
+        db_path = "db/SJ_TM2360E_v2.sqlite3"
+        # check_same_thread=False 인수를 sqlite3.connect 함수에 직접 전달
         conn = sqlite3.connect(db_path, check_same_thread=False)
         return conn
     except Exception as e:
@@ -28,7 +29,7 @@ def read_data_from_db(conn, table_name):
         st.error(f"테이블 '{table_name}'에서 데이터를 불러오는 중 오류가 발생했습니다: {e}")
         return None
 
-# 분석 함수 (DB 데이터에 맞춰 수정)
+# analyze_data 함수 (날짜 필터링 제거)
 def analyze_data(df, date_col_name):
     for col in df.columns:
         df[col] = df[col].apply(lambda x: x.strip() if isinstance(x, str) else x)
@@ -88,8 +89,7 @@ def analyze_data(df, date_col_name):
 
     return summary_data, all_dates
 
-
-def display_analysis_result(analysis_key, table_name):
+def display_analysis_result(analysis_key, table_name, date_col_name):
     if st.session_state.analysis_results[analysis_key] is None:
         st.error("데이터 로드에 실패했습니다. 파일 형식을 확인해주세요.")
         return
@@ -105,7 +105,6 @@ def display_analysis_result(analysis_key, table_name):
 
     all_reports_text = ""
     
-    # 분석 데이터가 비어있을 경우 메시지 표시
     if not summary_data or (len(summary_data) == 1 and 'N/A' in summary_data):
         st.warning("선택한 날짜에 해당하는 분석 데이터가 없습니다.")
         return
@@ -166,27 +165,23 @@ def main():
             'pcb': None, 'fw': None, 'rftx': None, 'semi': None, 'func': None
         }
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Func 분석"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Semi 분석", "파일 Func 분석"])
     
-    conn = get_connection()
-    if conn is not None:
-        try:
-            df_all_data = pd.read_sql_query("SELECT * FROM historyinspection;", conn)
-        except Exception as e:
-            st.error(f"데이터베이스에서 'historyinspection' 테이블을 불러오는 중 오류가 발생했습니다: {e}")
-            return
-    else:
-        st.error("데이터베이스 연결 실패: 앱을 실행할 수 없습니다.")
+    try:
+        # 모든 탭에서 공통으로 사용할 원본 데이터를 한 번만 불러옵니다.
+        df_all_data = pd.read_sql_query("SELECT * FROM historyinspection;", conn)
+        df_all_data = df_all_data.replace('N/A', np.nan)
+    except Exception as e:
+        st.error(f"데이터베이스에서 'historyinspection' 테이블을 불러오는 중 오류가 발생했습니다: {e}")
         return
 
     try:
         with tab1:
             st.header("파일 PCB (Pcb_Process)")
-            df_all_data['PcbStartTime'] = pd.to_datetime(df_all_data['PcbStartTime'], errors='coerce')
-            
             # PCB 관련 필터
             col_date, col_button = st.columns([0.8, 0.2])
             with col_date:
+                df_all_data['PcbStartTime'] = pd.to_datetime(df_all_data['PcbStartTime'], errors='coerce')
                 df_dates = df_all_data['PcbStartTime'].dt.date
                 min_date = df_dates.min() if not df_dates.dropna().empty else date.today()
                 max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
