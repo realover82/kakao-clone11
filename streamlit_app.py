@@ -9,11 +9,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # SQLite 연결 함수
-@st.cache_resource(check_same_thread=False)
+@st.cache_resource
 def get_connection():
     try:
         db_path = "db/SJ_TM2360E.sqlite3"
-        conn = sqlite3.connect(db_path)
+        # check_same_thread=False 인수를 sqlite3.connect 함수에 직접 전달
+        conn = sqlite3.connect(db_path, check_same_thread=False)
         return conn
     except Exception as e:
         st.error(f"데이터베이스 연결에 실패했습니다: {e}")
