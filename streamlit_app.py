@@ -17,7 +17,7 @@ def get_connection():
     except Exception as e:
         st.error(f"데이터베이스 연결에 실패했습니다: {e}")
         return None
-
+table_name ="my_csv_data"
 # Function to read data from DB with date filter
 def read_data_from_db(conn, table_name, start_date=None, end_date=None, date_col=None):
     try:
