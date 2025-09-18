@@ -7,7 +7,6 @@ import sqlite3
 @st.cache_resource
 def get_connection():
     try:
-        # secrets.toml을 사용하지 않고 파일 경로를 직접 지정합니다.
         db_path = "db/SJ_TM2360E.sqlite3"
         conn = sqlite3.connect(db_path)
         return conn
@@ -98,8 +97,6 @@ def main():
 
         except Exception as e:
             st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
-        finally:
-            conn.close()
 
 if __name__ == "__main__":
     main()
