@@ -18,7 +18,7 @@ def get_connection():
         st.error(f"데이터베이스 연결에 실패했습니다: {e}")
         return None
 
-# 데이터베이스에서 테이블을 읽어 DataFrame으로 반환하는 함수 (날짜 필터 없음)
+# 데이터베이스에서 테이블을 읽어 DataFrame으로 반환하는 함수
 def read_data_from_db(conn, table_name):
     try:
         query = f"SELECT * FROM {table_name}"
@@ -28,16 +28,9 @@ def read_data_from_db(conn, table_name):
         st.error(f"테이블 '{table_name}'에서 데이터를 불러오는 중 오류가 발생했습니다: {e}")
         return None
 
-# analyze_data 함수 (날짜 필터링 제거)
+# analyze_data 함수
 def analyze_data(df, date_col_name):
-    for col in df.columns:
-        df[col] = df[col].apply(lambda x: x.strip() if isinstance(x, str) else x)
-    
-    df = df.replace('N/A', np.nan)
-    
-    if date_col_name in df.columns:
-        df[date_col_name] = pd.to_datetime(df[date_col_name], errors='coerce')
-    
+    # PassStatusNorm 컬럼 생성
     df['PassStatusNorm'] = ""
     if 'PcbPass' in df.columns:
         df['PassStatusNorm'] = df['PcbPass'].fillna('').astype(str).str.strip().str.upper()
@@ -54,14 +47,12 @@ def analyze_data(df, date_col_name):
     all_dates = []
 
     jig_col = 'SNumber'
-    if 'PcbMaxIrPwr' in df.columns: jig_col = 'PcbMaxIrPwr'
-    if 'BatadcStamp' in df.columns: jig_col = 'BatadcStamp'
+    if 'PcbMaxIrPwr' in df.columns and not df['PcbMaxIrPwr'].isnull().all():
+        jig_col = 'PcbMaxIrPwr'
+    if 'BatadcStamp' in df.columns and not df['BatadcStamp'].isnull().all():
+        jig_col = 'BatadcStamp'
     
-    # 데이터가 비어있거나 날짜 컬럼이 유효하지 않은 경우를 처리
-    if df.empty or date_col_name not in df.columns or df[date_col_name].dt.date.dropna().empty:
-        return summary_data, all_dates
-
-    if 'SNumber' in df.columns:
+    if 'SNumber' in df.columns and date_col_name in df.columns and not df[date_col_name].dt.date.dropna().empty:
         for jig, group in df.groupby(jig_col):
             for d, day_group in group.groupby(group[date_col_name].dt.date):
                 if pd.isna(d): continue
@@ -91,8 +82,8 @@ def analyze_data(df, date_col_name):
 
 
 def display_analysis_result(analysis_key, table_name, date_col_name):
-    if st.session_state.analysis_results[analysis_key] is None:
-        st.error("데이터 로드에 실패했습니다. 파일 형식을 확인해주세요.")
+    if st.session_state.analysis_results[analysis_key].empty:
+        st.warning("선택한 날짜에 해당하는 분석 데이터가 없습니다.")
         return
 
     summary_data, all_dates = st.session_state.analysis_data[analysis_key]
@@ -135,7 +126,7 @@ def display_analysis_result(analysis_key, table_name, date_col_name):
         st.table(report_df)
         all_reports_text += report_df.to_csv(index=False) + "\n"
     
-    st.success("분석이 완료되었습니다!")
+    st.success("분석 완료! 결과가 저장되었습니다.")
 
     st.download_button(
         label="분석 결과 다운로드",
@@ -167,9 +158,8 @@ def main():
             'pcb': None, 'fw': None, 'rftx': None, 'semi': None, 'func': None
         }
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Func 분석"])
-    
     try:
+        # 모든 탭에서 공통으로 사용할 원본 데이터를 한 번만 불러옵니다.
         df_all_data = pd.read_sql_query("SELECT * FROM historyinspection;", conn)
     except Exception as e:
         st.error(f"데이터베이스에서 'historyinspection' 테이블을 불러오는 중 오류가 발생했습니다: {e}")
@@ -182,6 +172,8 @@ def main():
     df_all_data['SemiAssyStartTime_dt'] = pd.to_datetime(df_all_data['SemiAssyStartTime'], errors='coerce')
     df_all_data['BatadcStamp_dt'] = pd.to_datetime(df_all_data['BatadcStamp'], errors='coerce')
 
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Func 분석"])
+    
     try:
         with tab1:
             st.header("파일 PCB (Pcb_Process)")
@@ -190,7 +182,7 @@ def main():
             with col_date:
                 df_dates = df_all_data['PcbStartTime_dt'].dt.date.dropna()
                 min_date = df_dates.min() if not df_dates.empty else date.today()
-                max_date = df_dates.max() if not df_dates.empty else date.today()
+                max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
                 selected_dates = st.date_input("날짜 범위 선택", value=(min_date, max_date), key="dates_pcb")
             with col_button:
                 st.markdown("---")
