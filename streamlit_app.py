@@ -12,7 +12,6 @@ warnings.filterwarnings('ignore')
 def get_connection():
     try:
         db_path = "db/SJ_TM2360E_v2.sqlite3"
-        # check_same_thread=False 인수를 sqlite3.connect 함수에 직접 전달
         conn = sqlite3.connect(db_path, check_same_thread=False)
         return conn
     except Exception as e:
@@ -165,7 +164,8 @@ def main():
             'pcb': None, 'fw': None, 'rftx': None, 'semi': None, 'func': None
         }
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Semi 분석", "파일 Func 분석"])
+    # "파일 Semi 분석" 탭이 중복되어 있어서 하나를 제거했습니다.
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Func 분석"])
     
     try:
         # 모든 탭에서 공통으로 사용할 원본 데이터를 한 번만 불러옵니다.
@@ -249,8 +249,8 @@ def main():
                     with st.spinner("데이터 분석 및 저장 중..."):
                         start_date_rftx, end_date_rftx = selected_dates
                         df_filtered = df_all_data[
-                            (pd.to_datetime(df_all_data['RfTxStamp']).dt.date >= start_date_rftx) &
-                            (pd.to_datetime(df_all_data['RfTxStamp']).dt.date <= end_date_rftx)
+                            (df_all_data['RfTxStamp'].dt.date >= start_date_rftx) &
+                            (df_all_data['RfTxStamp'].dt.date <= end_date_rftx)
                         ]
 
                         st.session_state.analysis_results['rftx'] = df_filtered
@@ -287,7 +287,7 @@ def main():
                     st.success("분석 완료! 결과가 저장되었습니다.")
 
             if st.session_state.analysis_results['semi'] is not None:
-                display_analysis_result('semi', 'SemiAssy_Process')
+                display_analysis_result('semi', 'SemiAssy_Process', 'SemiAssyStartTime')
 
         with tab5:
             st.header("파일 Func (Func_Process)")
@@ -315,7 +315,7 @@ def main():
                     st.success("분석 완료! 결과가 저장되었습니다.")
             
             if st.session_state.analysis_results['func'] is not None:
-                display_analysis_result('func', 'Func_Process')
+                display_analysis_result('func', 'Func_Process', 'BatadcStamp')
 
     except Exception as e:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
