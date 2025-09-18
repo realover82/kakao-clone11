@@ -1,20 +1,6 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 import altair as alt
-import io
-import re
-
-# SQLite 연결 함수
-@st.cache_resource
-def get_connection():
-    try:
-        db_path = st.secrets["db_credentials"]["DB_FILE"]
-        conn = sqlite3.connect(db_path)
-        return conn
-    except Exception as e:
-        st.error(f"SQLite 연결에 실패했습니다: {e}")
-        return None
 
 def show_dashboard(df):
     """
@@ -93,7 +79,8 @@ def main():
     
     if uploaded_file is not None:
         try:
-            df = pd.read_csv(uploaded_file, low_memory=False)
+            # encoding='cp949' 옵션 추가
+            df = pd.read_csv(uploaded_file, low_memory=False, encoding='cp949')
             
             st.write("### 업로드된 데이터 미리보기")
             st.dataframe(df.head())
@@ -115,7 +102,7 @@ if __name__ == "__main__":
     uploaded_file = st.file_uploader("파일 업로드", type=["csv"])
     if uploaded_file is not None:
         try:
-            st.session_state['df'] = pd.read_csv(uploaded_file, low_memory=False, skiprows=1)
+            st.session_state['df'] = pd.read_csv(uploaded_file, low_memory=False, encoding='cp949')
             st.write("### 업로드된 데이터 미리보기")
             st.dataframe(st.session_state['df'].head())
             if st.button("분석 시작"):
