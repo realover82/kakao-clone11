@@ -1,16 +1,18 @@
 import streamlit as st
-import sqlite3
+import pymysql
 
 def connect_to_db():
-    # secrets.toml에서 파일 경로 불러오기
-    db_path = st.secrets["db_credentials"]["DB_FILE"]
-    conn = sqlite3.connect(db_path)
+    conn = pymysql.connect(
+        host=st.secrets["db_credentials"]["DB_HOST"],
+        port=st.secrets["db_credentials"]["DB_PORT"],
+        user=st.secrets["db_credentials"]["DB_USER"],
+        password=st.secrets["db_credentials"]["DB_PASSWORD"]
+    )
     return conn
 
-# 앱 실행
 try:
     conn = connect_to_db()
-    st.success("SQLite 데이터베이스에 성공적으로 연결되었습니다!")
-    # ... 데이터프레임 처리 및 대시보드 표시 ...
+    st.success("데이터베이스에 성공적으로 연결되었습니다!")
+    # ... 여기에 데이터프레임을 처리하는 로직을 추가합니다. ...
 except Exception as e:
-    st.error(f"SQLite 연결에 실패했습니다: {e}")
+    st.error(f"연결 실패: {e}")
