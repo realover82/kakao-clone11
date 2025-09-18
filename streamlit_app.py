@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 @st.cache_resource
 def get_connection():
     try:
-        db_path = "db/SJ_TM2360E_v2.sqlite3"
+        db_path = "db/SJ_TM2360E.sqlite3"
         conn = sqlite3.connect(db_path, check_same_thread=False)
         return conn
     except Exception as e:
@@ -164,13 +164,11 @@ def main():
             'pcb': None, 'fw': None, 'rftx': None, 'semi': None, 'func': None
         }
     
-    # "파일 Semi 분석" 탭이 중복되어 있어서 하나를 제거했습니다.
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["파일 PCB 분석", "파일 Fw 분석", "파일 RfTx 분석", "파일 Semi 분석", "파일 Func 분석"])
     
     try:
         # 모든 탭에서 공통으로 사용할 원본 데이터를 한 번만 불러옵니다.
         df_all_data = pd.read_sql_query("SELECT * FROM historyinspection;", conn)
-        df_all_data = df_all_data.replace('N/A', np.nan)
     except Exception as e:
         st.error(f"데이터베이스에서 'historyinspection' 테이블을 불러오는 중 오류가 발생했습니다: {e}")
         return
@@ -181,10 +179,10 @@ def main():
             # PCB 관련 필터
             col_date, col_button = st.columns([0.8, 0.2])
             with col_date:
-                df_all_data['PcbStartTime'] = pd.to_datetime(df_all_data['PcbStartTime'], errors='coerce')
-                df_dates = df_all_data['PcbStartTime'].dt.date
-                min_date = df_dates.min() if not df_dates.dropna().empty else date.today()
-                max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
+                # df_all_data['PcbStartTime'] 컬럼의 NaT 값을 제거하여 유효한 날짜만 남김
+                df_dates = pd.to_datetime(df_all_data['PcbStartTime'], errors='coerce').dt.date.dropna()
+                min_date = df_dates.min() if not df_dates.empty else date.today()
+                max_date = df_dates.max() if not df_dates.empty else date.today()
                 selected_dates = st.date_input("날짜 범위 선택", value=(min_date, max_date), key="dates_pcb")
             with col_button:
                 st.markdown("---")
@@ -192,9 +190,9 @@ def main():
                     with st.spinner("데이터 분석 및 저장 중..."):
                         start_date_pcb, end_date_pcb = selected_dates
                         df_filtered = df_all_data[
-                            (df_all_data['PcbStartTime'].dt.date >= start_date_pcb) &
-                            (df_all_data['PcbStartTime'].dt.date <= end_date_pcb)
-                        ]
+                            (pd.to_datetime(df_all_data['PcbStartTime'], errors='coerce').dt.date >= start_date_pcb) &
+                            (pd.to_datetime(df_all_data['PcbStartTime'], errors='coerce').dt.date <= end_date_pcb)
+                        ].copy() # SettingWithCopyWarning 방지
                         
                         st.session_state.analysis_results['pcb'] = df_filtered
                         st.session_state.analysis_data['pcb'] = analyze_data(df_filtered, 'PcbStartTime')
@@ -206,13 +204,11 @@ def main():
 
         with tab2:
             st.header("파일 Fw (Fw_Process)")
-            df_all_data['FwStamp'] = pd.to_datetime(df_all_data['FwStamp'], errors='coerce')
-
             # Fw 관련 필터
             col_date, col_button = st.columns([0.8, 0.2])
             with col_date:
-                df_dates = df_all_data['FwStamp'].dt.date
-                min_date = df_dates.min() if not df_dates.dropna().empty else date.today()
+                df_dates = pd.to_datetime(df_all_data['FwStamp'], errors='coerce').dt.date.dropna()
+                min_date = df_dates.min() if not df_dates.empty else date.today()
                 max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
                 selected_dates = st.date_input("날짜 범위 선택", value=(min_date, max_date), key="dates_fw")
             with col_button:
@@ -221,9 +217,9 @@ def main():
                     with st.spinner("데이터 분석 및 저장 중..."):
                         start_date_fw, end_date_fw = selected_dates
                         df_filtered = df_all_data[
-                            (df_all_data['FwStamp'].dt.date >= start_date_fw) &
-                            (df_all_data['FwStamp'].dt.date <= end_date_fw)
-                        ]
+                            (pd.to_datetime(df_all_data['FwStamp'], errors='coerce').dt.date >= start_date_fw) &
+                            (pd.to_datetime(df_all_data['FwStamp'], errors='coerce').dt.date <= end_date_fw)
+                        ].copy()
 
                         st.session_state.analysis_results['fw'] = df_filtered
                         st.session_state.analysis_data['fw'] = analyze_data(df_filtered, 'FwStamp')
@@ -235,11 +231,10 @@ def main():
 
         with tab3:
             st.header("파일 RfTx (RfTx_Process)")
-            df_all_data['RfTxStamp'] = pd.to_datetime(df_all_data['RfTxStamp'], errors='coerce')
             # RfTx 관련 필터
             col_date, col_button = st.columns([0.8, 0.2])
             with col_date:
-                df_dates = df_all_data['RfTxStamp'].dt.date
+                df_dates = pd.to_datetime(df_all_data['RfTxStamp'], errors='coerce').dt.date.dropna()
                 min_date = df_dates.min() if not df_dates.dropna().empty else date.today()
                 max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
                 selected_dates = st.date_input("날짜 범위 선택", value=(min_date, max_date), key="dates_rftx")
@@ -249,9 +244,9 @@ def main():
                     with st.spinner("데이터 분석 및 저장 중..."):
                         start_date_rftx, end_date_rftx = selected_dates
                         df_filtered = df_all_data[
-                            (df_all_data['RfTxStamp'].dt.date >= start_date_rftx) &
-                            (df_all_data['RfTxStamp'].dt.date <= end_date_rftx)
-                        ]
+                            (pd.to_datetime(df_all_data['RfTxStamp'], errors='coerce').dt.date >= start_date_rftx) &
+                            (pd.to_datetime(df_all_data['RfTxStamp'], errors='coerce').dt.date <= end_date_rftx)
+                        ].copy()
 
                         st.session_state.analysis_results['rftx'] = df_filtered
                         st.session_state.analysis_data['rftx'] = analyze_data(df_filtered, 'RfTxStamp')
@@ -263,11 +258,10 @@ def main():
 
         with tab4:
             st.header("파일 Semi (SemiAssy_Process)")
-            df_all_data['SemiAssyStartTime'] = pd.to_datetime(df_all_data['SemiAssyStartTime'], errors='coerce')
             # Semi 관련 필터
             col_date, col_button = st.columns([0.8, 0.2])
             with col_date:
-                df_dates = df_all_data['SemiAssyStartTime'].dt.date
+                df_dates = pd.to_datetime(df_all_data['SemiAssyStartTime'], errors='coerce').dt.date.dropna()
                 min_date = df_dates.min() if not df_dates.dropna().empty else date.today()
                 max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
                 selected_dates = st.date_input("날짜 범위 선택", value=(min_date, max_date), key="dates_semi")
@@ -277,9 +271,9 @@ def main():
                     with st.spinner("데이터 분석 및 저장 중..."):
                         start_date_semi, end_date_semi = selected_dates
                         df_filtered = df_all_data[
-                            (df_all_data['SemiAssyStartTime'].dt.date >= start_date_semi) &
-                            (df_all_data['SemiAssyStartTime'].dt.date <= end_date_semi)
-                        ]
+                            (pd.to_datetime(df_all_data['SemiAssyStartTime'], errors='coerce').dt.date >= start_date_semi) &
+                            (pd.to_datetime(df_all_data['SemiAssyStartTime'], errors='coerce').dt.date <= end_date_semi)
+                        ].copy()
 
                         st.session_state.analysis_results['semi'] = df_filtered
                         st.session_state.analysis_data['semi'] = analyze_data(df_filtered, 'SemiAssyStartTime')
@@ -291,11 +285,10 @@ def main():
 
         with tab5:
             st.header("파일 Func (Func_Process)")
-            df_all_data['BatadcStamp'] = pd.to_datetime(df_all_data['BatadcStamp'], errors='coerce')
             # Func 관련 필터
             col_date, col_button = st.columns([0.8, 0.2])
             with col_date:
-                df_dates = df_all_data['BatadcStamp'].dt.date
+                df_dates = pd.to_datetime(df_all_data['BatadcStamp'], errors='coerce').dt.date.dropna()
                 min_date = df_dates.min() if not df_dates.dropna().empty else date.today()
                 max_date = df_dates.max() if not df_dates.dropna().empty else date.today()
                 selected_dates = st.date_input("날짜 범위 선택", value=(min_date, max_date), key="dates_func")
@@ -305,9 +298,9 @@ def main():
                     with st.spinner("데이터 분석 및 저장 중..."):
                         start_date_func, end_date_func = selected_dates
                         df_filtered = df_all_data[
-                            (df_all_data['BatadcStamp'].dt.date >= start_date_func) &
-                            (df_all_data['BatadcStamp'].dt.date <= end_date_func)
-                        ]
+                            (pd.to_datetime(df_all_data['BatadcStamp'], errors='coerce').dt.date >= start_date_func) &
+                            (pd.to_datetime(df_all_data['BatadcStamp'], errors='coerce').dt.date <= end_date_func)
+                        ].copy()
                     
                         st.session_state.analysis_results['func'] = df_filtered
                         st.session_state.analysis_data['func'] = analyze_data(df_filtered, 'BatadcStamp')
