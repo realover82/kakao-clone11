@@ -1,3 +1,9 @@
 streamlit
 pymysql
 altair
+torch
+numpy
+tqdm
+scipy
+pandas
+matplotlib
