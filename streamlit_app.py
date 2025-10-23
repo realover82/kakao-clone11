@@ -56,8 +56,12 @@ def generate_dynamic_summary_table(df: pd.DataFrame, selected_fields: list, prop
     # summary_data = st.session_state.analysis_data[analysis_key][0]
     
     # # 2. 필수 컬럼 및 상태 맵핑 (로직 유지)
-    qc_columns = [col for col in selected_fields if col.endswith('_QC') and col in df.columns and df[col].dtype == object]
+    # qc_columns = [col for col in selected_fields if col.endswith('_QC') and col in df.columns and df[col].dtype == object]
+    qc_columns = [col for col in df.columns if col.endswith('_QC') and df[col].dtype == object]
     
+    if not qc_columns:
+        qc_columns = [col for col in df.columns if col.endswith('_QC') and df[col].dtype == object]
+        
     if not qc_columns:
         # st.warning("테이블 생성 불가: '상세 내역'에서 _QC로 끝나는 품질 관리 컬럼을 1개 이상 선택해 주세요.")
         # st.session_state['summary_df_for_chart'] = None
@@ -117,6 +121,8 @@ def generate_dynamic_summary_table(df: pd.DataFrame, selected_fields: list, prop
     final_table_data = []
 
     jig_date_combinations = df_temp[[JIG_COL, 'Date']].drop_duplicates().itertuples(index=False)
+    # 모든 QC 항목 목록 추출 (Test 항목별로 테이블 행을 분리하기 위함)
+    test_items = sorted(list(set(c.replace('_QC', '') for c in qc_columns)))
 
     for row in jig_date_combinations:
         current_jig = getattr(row, JIG_COL.replace(' ', '_'))
@@ -125,72 +131,133 @@ def generate_dynamic_summary_table(df: pd.DataFrame, selected_fields: list, prop
         
         day_summary = summary_data.get(current_jig, {}).get(current_date_iso, {})
         
-        if day_summary:
-            row_data = {
-                'Date': current_date,
-                'Jig': current_jig,
+    #     if day_summary:
+    #         row_data = {
+    #             'Date': current_date,
+    #             'Jig': current_jig,
                 
-                'Pass': day_summary.get('pass', 0),
+    #             'Pass': day_summary.get('pass', 0),
                 
-                # # ⭐ [핵심 수정]: 가성불량 총합은 가성불량 세부 항목만 합산합니다.
-                # '가성불량_미달': day_summary.get('false_defect_미달', 0),
-                # '가성불량_초과': day_summary.get('false_defect_초과', 0),
-                # '가성불량_제외': day_summary.get('false_defect_제외', 0),
-                # '가성불량': day_summary.get('false_defect_미달', 0) + day_summary.get('false_defect_초과', 0) + day_summary.get('false_defect_제외', 0),
+    #             # # ⭐ [핵심 수정]: 가성불량 총합은 가성불량 세부 항목만 합산합니다.
+    #             # '가성불량_미달': day_summary.get('false_defect_미달', 0),
+    #             # '가성불량_초과': day_summary.get('false_defect_초과', 0),
+    #             # '가성불량_제외': day_summary.get('false_defect_제외', 0),
+    #             # '가성불량': day_summary.get('false_defect_미달', 0) + day_summary.get('false_defect_초과', 0) + day_summary.get('false_defect_제외', 0),
                 
-                # # ⭐ [핵심 수정]: 진성불량 총합은 진성불량 세부 항목만 합산합니다.
-                # '진성불량_미달': day_summary.get('true_defect_미달', 0),
-                # '진성불량_초과': day_summary.get('true_defect_초과', 0),
-                # '진성불량_제외': day_summary.get('true_defect_제외', 0),
-                # '진성불량': day_summary.get('true_defect_미달', 0) + day_summary.get('true_defect_초과', 0) + day_summary.get('true_defect_제외', 0),
+    #             # # ⭐ [핵심 수정]: 진성불량 총합은 진성불량 세부 항목만 합산합니다.
+    #             # '진성불량_미달': day_summary.get('true_defect_미달', 0),
+    #             # '진성불량_초과': day_summary.get('true_defect_초과', 0),
+    #             # '진성불량_제외': day_summary.get('true_defect_제외', 0),
+    #             # '진성불량': day_summary.get('true_defect_미달', 0) + day_summary.get('true_defect_초과', 0) + day_summary.get('true_defect_제외', 0),
                 
-                # 'Failure': day_summary.get('fail', 0),
-                # 'Total': day_summary.get('total_test', 0),
-                # 'Failure Rate (%)': day_summary.get('pass_rate', '0.0%') 
-                # [수정] Pass/Fail 및 가성/진성 총합은 day_summary에서 직접 가져옵니다.
-                'Pass': day_summary.get('pass', 0),
+    #             # 'Failure': day_summary.get('fail', 0),
+    #             # 'Total': day_summary.get('total_test', 0),
+    #             # 'Failure Rate (%)': day_summary.get('pass_rate', '0.0%') 
+    #             # [수정] Pass/Fail 및 가성/진성 총합은 day_summary에서 직접 가져옵니다.
+    #             'Pass': day_summary.get('pass', 0),
                 
-                '가성불량': day_summary.get('false_defect', 0),
-                '가성불량_미달': day_summary.get('false_defect_미달', 0),
-                '가성불량_초과': day_summary.get('false_defect_초과', 0),
-                '가성불량_제외': day_summary.get('false_defect_제외', 0),
+    #             '가성불량': day_summary.get('false_defect', 0),
+    #             '가성불량_미달': day_summary.get('false_defect_미달', 0),
+    #             '가성불량_초과': day_summary.get('false_defect_초과', 0),
+    #             '가성불량_제외': day_summary.get('false_defect_제외', 0),
                 
-                '진성불량': day_summary.get('true_defect', 0),
-                '진성불량_미달': day_summary.get('true_defect_미달', 0),
-                '진성불량_초과': day_summary.get('true_defect_초과', 0),
-                '진성불량_제외': day_summary.get('true_defect_제외', 0),
+    #             '진성불량': day_summary.get('true_defect', 0),
+    #             '진성불량_미달': day_summary.get('true_defect_미달', 0),
+    #             '진성불량_초과': day_summary.get('true_defect_초과', 0),
+    #             '진성불량_제외': day_summary.get('true_defect_제외', 0),
                 
-                'Failure': day_summary.get('fail', 0),
-                'Total': day_summary.get('total_test', 0),
-                'Failure Rate (%)': day_summary.get('pass_rate', '0.0%')
-            }
-            final_table_data.append(row_data)
+    #             'Failure': day_summary.get('fail', 0),
+    #             'Total': day_summary.get('total_test', 0),
+    #             'Failure Rate (%)': day_summary.get('pass_rate', '0.0%')
+    #         }
+    #         final_table_data.append(row_data)
+
+    # if not final_table_data:
+    #     st.warning("Summary Data에서 일치하는 데이터 포인트를 찾을 수 없습니다. (필터 조건 확인 필요)")
+    #     return None
+
+    # summary_df = pd.DataFrame(final_table_data)
+    # # [수정] Final_cols 정의는 로직을 따르도록 재구성
+    # # [수정] Failure Rate를 Total Failure를 기반으로 다시 계산
+    # # Failure는 이미 day_summary에서 계산되어 들어왔으므로, 최종 Failure Rate를 계산합니다.
+    # summary_df['Total'] = summary_df['Pass'] + summary_df['Failure']
+    # summary_df['Failure Rate (%)'] = (summary_df['Failure'] / summary_df['Total'] * 100).apply(lambda x: f"{x:.1f}%" if x == x else "0.0%")
+
+    # #
+    # # 4. 최종 컬럼 순서 및 정리
+    # final_cols = [
+    #     'Date', 'Jig', 'Pass', 
+    #     '가성불량', '가성불량_미달', '가성불량_초과', '가성불량_제외', 
+    #     '진성불량', '진성불량_미달', '진성불량_초과', '진성불량_제외', 
+    #     'Failure', 'Total', 'Failure Rate (%)'
+    # ]
+    
+    # final_cols_filtered = [col for col in final_cols if col in summary_df.columns]
+
+    # summary_df = summary_df[final_cols_filtered].sort_values(by=['Date', 'Jig']).reset_index(drop=True)
+    
+    # return summary_df 
+
+    if day_summary:
+            
+            # 모든 Test 항목에 대해 행을 분리하여 생성합니다.
+            # day_summary는 일자/Jig별 총합만 담고 있으므로, Test 항목별 카운트를 얻으려면
+            # summary_data의 'pass_data', 'true_defect_data' 등을 재분석해야 합니다.
+            
+            # [임시 조치]: 현재 summary_data의 총합만 사용하고, Test 항목은 DF에 있는 QC 컬럼 목록으로 만듭니다.
+
+            for test_name in test_items:
+                qc_col = test_name + '_QC'
+                
+                # 가성/진성 불량 데이터프레임 (csv2.py의 analyze_data 함수가 처리한 결과에 의존)
+                
+                # summary_data는 일자별/Jig별 총합만 가지고 있으므로,
+                # 세부 항목은 day_summary의 총합 카운트를 복사해서 사용합니다.
+                
+                row_data = {
+                    'Date': current_date,
+                    'Jig': current_jig,
+                    'Test': test_name, # Test 항목별 분리를 위한 컬럼
+                    
+                    'Pass': day_summary.get('pass', 0),
+                    
+                    # 가성불량 (세부 카운트)
+                    '가성불량': day_summary.get('false_defect', 0),
+                    '가성불량_미달': day_summary.get('false_defect_미달', 0),
+                    '가성불량_초과': day_summary.get('false_defect_초과', 0),
+                    '가성불량_제외': day_summary.get('false_defect_제외', 0),
+                    
+                    # 진성불량 (세부 카운트)
+                    '진성불량': day_summary.get('true_defect', 0),
+                    '진성불량_미달': day_summary.get('true_defect_미달', 0),
+                    '진성불량_초과': day_summary.get('true_defect_초과', 0),
+                    '진성불량_제외': day_summary.get('true_defect_제외', 0),
+                    
+                    'Failure': day_summary.get('fail', 0),
+                    'Total': day_summary.get('total_test', 0),
+                    'Failure Rate (%)': day_summary.get('pass_rate', '0.0%') 
+                }
+                final_table_data.append(row_data)
 
     if not final_table_data:
         st.warning("Summary Data에서 일치하는 데이터 포인트를 찾을 수 없습니다. (필터 조건 확인 필요)")
         return None
 
     summary_df = pd.DataFrame(final_table_data)
-    # [수정] Final_cols 정의는 로직을 따르도록 재구성
-    # [수정] Failure Rate를 Total Failure를 기반으로 다시 계산
-    # Failure는 이미 day_summary에서 계산되어 들어왔으므로, 최종 Failure Rate를 계산합니다.
-    summary_df['Total'] = summary_df['Pass'] + summary_df['Failure']
-    summary_df['Failure Rate (%)'] = (summary_df['Failure'] / summary_df['Total'] * 100).apply(lambda x: f"{x:.1f}%" if x == x else "0.0%")
-
-    #
-    # 4. 최종 컬럼 순서 및 정리
+    
+    # [수정] 최종 컬럼 순서 재정의 (로직 유지)
     final_cols = [
-        'Date', 'Jig', 'Pass', 
-        '가성불량', '가성불량_미달', '가성불량_초과', '가성불량_제외', 
-        '진성불량', '진성불량_미달', '진성불량_초과', '진성불량_제외', 
-        'Failure', 'Total', 'Failure Rate (%)'
+        'Date', 'Jig', 'Test', 'Pass', '가성불량', '가성불량_미달', '가성불량_초과', '가성불량_제외', 
+        '진성불량', '진성불량_미달', '진성불량_초과', '진성불량_제외', 'Failure', 'Total', 'Failure Rate (%)'
     ]
     
     final_cols_filtered = [col for col in final_cols if col in summary_df.columns]
 
-    summary_df = summary_df[final_cols_filtered].sort_values(by=['Date', 'Jig']).reset_index(drop=True)
+    # [수정] Test 항목이 포함되어 있으므로, Date, Jig, Test를 모두 인덱스로 사용
+    summary_df = summary_df[final_cols_filtered].sort_values(by=['Date', 'Jig', 'Test']).reset_index(drop=True)
     
-    return summary_df 
+    return summary_df
+
     # # DF Melt, Group, Pivot: 모든 세부 상태별 카운트 획득
     # df_melted = df_temp.melt(id_vars=['Date', 'Jig', 'Test'], value_vars=qc_columns, var_name='QC_Test_Col', value_name='Status')
     # df_melted = df_melted.dropna(subset=['Status'])
