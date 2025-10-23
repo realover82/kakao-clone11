@@ -6,7 +6,6 @@ import io
 from datetime import datetime
 import warnings
 import streamlit as st
-from typing import Tuple, Dict, Any, List, Optional
 
 warnings.filterwarnings('ignore')
 
@@ -129,33 +128,7 @@ def apply_qc_check(df, main_col):
     
     return df
 
-# ⭐ [핵심 수정]: 가성불량 카운트를 위해 '미달2', '초과2', '제외2' 키를 사용하여 별도 집계
-def get_defect_counts_false(df_source):
-    """주어진 가성불량 DF에서 미달2, 초과2, 제외2 건수를 계산"""
-    # 키 이름을 변경하여 True Defect과 충돌하지 않도록 합니다.
-    counts = {'미달2': 0, '초과2': 0, '제외2': 0}
-    for qc_col in [col for col in df_source.columns if col.endswith('_QC')]:
-        status_counts = df_source[qc_col].value_counts()
-        # 카운트 합산
-        counts['미달2'] += status_counts.get('미달', 0)
-        counts['초과2'] += status_counts.get('초과', 0)
-        counts['제외2'] += status_counts.get('제외', 0)
-    return counts
-
-def get_defect_counts_true(df_source):
-    """주어진 진성불량 DF에서 미달, 초과, 제외 건수를 계산"""
-    # True Defect은 원래의 '미달', '초과', '제외' 키를 사용합니다.
-    counts = {'미달': 0, '초과': 0, '제외': 0}
-    for qc_col in [col for col in df_source.columns if col.endswith('_QC')]:
-        status_counts = df_source[qc_col].value_counts()
-        # 카운트 합산
-        counts['미달'] += status_counts.get('미달', 0)
-        counts['초과'] += status_counts.get('초과', 0)
-        counts['제외'] += status_counts.get('제외', 0)
-    return counts
-
-# def analyze_data(df):
-def analyze_data(df: pd.DataFrame) -> Tuple[Dict[str, Any], List[datetime.date]]:
+def analyze_data(df):
     """
     PCB 데이터의 분석 로직을 담고 있는 함수.
     PcbStartTime 컬럼의 다양한 타임스탬프 형식을 처리하고, 상세 데이터를 전체 컬럼으로 저장합니다.
@@ -183,8 +156,7 @@ def analyze_data(df: pd.DataFrame) -> Tuple[Dict[str, Any], List[datetime.date]]
         df['PassStatusNorm'] = df[pass_col_actual].fillna('').astype(str).str.strip().str.upper()
     except StopIteration:
         st.error(f"'{pass_col}' 컬럼을 찾을 수 없어 'PassStatusNorm' 생성에 실패했습니다.")
-        # return None, None
-        return {}, []
+        return None, None
     # =========================================================================
 
     # 타임스탬프 컬럼 이름 찾기
@@ -193,8 +165,7 @@ def analyze_data(df: pd.DataFrame) -> Tuple[Dict[str, Any], List[datetime.date]]
         timestamp_col_actual = next(col for col in df.columns if col.strip().lower() == timestamp_col.lower())
     except StopIteration:
         st.error(f"'{timestamp_col}' 컬럼이 데이터에 없습니다.")
-        # return None, None
-        return {}, []
+        return None, None
 
     # === 타임스탬프 변환 로직 ===
     
@@ -221,8 +192,7 @@ def analyze_data(df: pd.DataFrame) -> Tuple[Dict[str, Any], List[datetime.date]]
     
     if final_series.isnull().all():
         st.warning(f"타임스탬프 변환에 실패했습니다. '{timestamp_col_actual}' 컬럼의 형식을 확인해주세요.")
-        # return None, None
-        return {}, []
+        return None, None
         
     df[timestamp_col_actual] = final_series
     
@@ -253,16 +223,6 @@ def analyze_data(df: pd.DataFrame) -> Tuple[Dict[str, Any], List[datetime.date]]
             
             false_defect_df = fail_df[fail_df['SNumber'].isin(current_jig_passed_sns)]
             true_defect_df = fail_df[~fail_df['SNumber'].isin(current_jig_passed_sns)]
-
-            # --- ⭐ [핵심 수정]: 미달/초과 카운트 분리 저장 로직 ---
-            
-            # True Defect 카운트
-            true_counts = get_defect_counts_true(true_defect_df)
-            
-            # False Defect 카운트 (미달2, 초과2, 제외2 키를 사용하여 명확히 분리)
-            false_counts = get_defect_counts_false(false_defect_df)
-            
-            # --------------------------------------------------
             
             # === 핵심 수정: 상세 데이터 저장 시 DataFrame의 모든 컬럼을 포함하도록 to_dict('records') 사용 ===
             pass_data = pass_df.to_dict('records')
@@ -288,15 +248,6 @@ def analyze_data(df: pd.DataFrame) -> Tuple[Dict[str, Any], List[datetime.date]]
                 'true_defect': true_defect_count,
                 'fail': fail_count,
                 'pass_rate': f"{rate:.1f}%",
-
-                # ⭐ [핵심 저장]: 가성/진성 불량의 세부 원인 카운트 저장
-                # true_counts는 '미달', false_counts는 '미달2' 키를 사용하도록 명시적으로 수정했습니다.
-                'true_defect_미달': true_counts['미달'],
-                'true_defect_초과': true_counts['초과'],
-                'true_defect_제외': true_counts['제외'],
-                'false_defect_미달': false_counts['미달2'],
-                'false_defect_초과': false_counts['초과2'],
-                'false_defect_제외': false_counts['제외2'],
                 
                 # 수정된 부분 반영: 모든 컬럼이 포함된 리스트 저장
                 'pass_data': pass_data,
