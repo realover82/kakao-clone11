@@ -303,7 +303,7 @@ SELECT * FROM (
         JOIN TEST_SPECIFICATION AS T2 ON 1=1
         
         -- ⭐⭐⭐ 날짜 필터 추가 ⭐⭐⭐
-        -- WHERE T1.PcbStartTime >= '2025-10-22' AND T1.PcbStartTime < '2025-10-23'
+         WHERE T1.PcbStartTime >= '2025-10-22' AND T1.PcbStartTime < '2025-10-23'
     ),
     
     Product_Status AS (
