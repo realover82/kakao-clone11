@@ -644,17 +644,17 @@ elif st.session_state.mode == '2. DB 조회 및 분석':
         except Exception as e:
             st.error(f"테이블 조회 오류: {e}")
   ###################      
-        # 💡 기간 입력 위젯
-        st.markdown("##### 📅 쿼리 기간 설정 (PcbStartTime 기준)")
-        # today = datetime.now().date()
-        # default_start = today - timedelta(days=30)
-        today_date, default_start_date = get_default_dates() # 💡 함수 호출로 변수 생성
+        # # 💡 기간 입력 위젯
+        # st.markdown("##### 📅 쿼리 기간 설정 (PcbStartTime 기준)")
+        # # today = datetime.now().date()
+        # # default_start = today - timedelta(days=30)
+        # today_date, default_start_date = get_default_dates() # 💡 함수 호출로 변수 생성
 
-        col_date_from, col_date_to = st.columns(2)
-        with col_date_from:
-            date_from = st.date_input("FROM Date", value=default_start_date, key='date_from_input')
-        with col_date_to:
-            date_to = st.date_input("TO Date", value=today_date, key='date_to_input')
+        # col_date_from, col_date_to = st.columns(2)
+        # with col_date_from:
+        #     date_from = st.date_input("FROM Date", value=default_start_date, key='date_from_input')
+        # with col_date_to:
+        #     date_to = st.date_input("TO Date", value=today_date, key='date_to_input')
  ####################           
         # --- 2-2. 사용자 직접 SQL 쿼리 실행 및 필드 편집 ---
         st.markdown("---")
