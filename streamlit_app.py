@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # ==============================================================================
 
 # 💡 DB 파일명을 현재 실행 디렉토리에 저장하도록 설정
-DB_FILE = r'./product_history_d2.db' 
+DB_FILE = r'./db/product_history_d2.db' 
 BASE_MEASUREMENTS = [
     'PcbSleepCurr', 'PcbBatVolt', 'PcbIrCurr', 'PcbIrPwr', 'PcbWirelessVolt',
     'PcbUsbCurr', 'PcbWirelessUsbVolt', 'PcbLed'
