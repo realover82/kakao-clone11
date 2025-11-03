@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # ==============================================================================
 
 # 💡 DB 파일명을 현재 실행 디렉토리에 저장하도록 설정
-DB_FILE = r'./db/product_history_d2.db' 
+DB_FILE = r'./product_history_d2.db' 
 BASE_MEASUREMENTS = [
     'PcbSleepCurr', 'PcbBatVolt', 'PcbIrCurr', 'PcbIrPwr', 'PcbWirelessVolt',
     'PcbUsbCurr', 'PcbWirelessUsbVolt', 'PcbLed'
@@ -74,6 +74,7 @@ def ensure_db_schema(conn):
                 TestStamp TEXT,
                 PcbStartTime TEXT,
                 PcbStopTime TEXT,
+                -- PcbMaxIrPwr_Value REAL,
                 PC_Code TEXT, 
                 {measure_cols_str}, -- 💡 누락된 측정값 필드 추가
                        
@@ -175,6 +176,77 @@ def get_default_dates():
 # 0-2. 데이터 로드 및 저장 함수
 # ------------------------------------------------------------------------------
 @st.cache_data(show_spinner="CSV 파일 분석 및 전처리 중...")
+# def load_data_with_dynamic_header(uploaded_file, test_week):
+#     """ 동적 헤더 탐색 및 데이터 전처리 후 DataFrame 반환 """
+#     try:
+#         file_content = uploaded_file.getvalue()
+#         file_io = io.StringIO(file_content.decode('utf-8'))
+#         df = pd.read_csv(file_io, header=4) 
+        
+#         # --- 전처리 로직 (원본 유지 및 보강) ---
+#         df.columns = [str(col).strip() for col in df.columns] 
+#         object_cols_to_clean = ['SNumber', 'PcbSleepCurr', 'PcbMaxSleepCurr', 'PcbMinSleepCurr', 'PcbBatVolt', 'PcbMaxBatVolt', 'PcbMinBatVolt', 'PcbIrCurr', 'PcbMaxIrCurr', 'PcbMinIrCurr', 'PcbIrPwr', 'PcbMaxIrPwr', 'PcbMinIrPwr', 'PcbWirelessVolt', 'PcbMaxWirelessVolt', 'PcbMinWirelessVolt', 'PcbUsbCurr', 'PcbMaxUsbCurr', 'PcbMinUsbCurr', 'PcbWirelessUsbVolt', 'PcbMaxWirelessUsbVolt', 'PcbMinWirelessUsbVolt', 'PcbLed', 'PcbMaxLed', 'PcbMinLed', 'PcbPass']
+#         for col in object_cols_to_clean:
+#             if col in df.columns: df[col] = clean_excel_string(df[col])
+#         numeric_pcb_cols = [col for col in object_cols_to_clean if col not in ['SNumber', 'PcbPass']]
+#         for col in numeric_pcb_cols:
+#             df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+#         TIME_FORMAT_COMPACT = '%Y%m%d%H%M%S'
+#         df['PcbStartTime'] = pd.to_datetime(df['PcbStartTime'].astype(str).str.replace(r'="', '', regex=True).str.replace(r'"', '', regex=True).str.strip(), errors='coerce', format=TIME_FORMAT_COMPACT)
+#         df['PcbStopTime'] = pd.to_datetime(df['PcbStopTime'].astype(str).str.replace(r'="', '', regex=True).str.replace(r'"', '', regex=True).str.strip(), errors='coerce', format=TIME_FORMAT_COMPACT)
+#         df['Stamp'] = pd.to_datetime(df['Stamp'], errors='coerce', format='%Y-%m-%d %H:%M:%S', exact=False)
+
+#         # 3. DB 테이블용 DataFrame 생성
+#         model_name = 'SJ_TM2360E'; model_suffix = 'PCB'
+#         df_product = df[['SNumber']].drop_duplicates().copy()
+#         df_product['ProductModel_Name'] = model_name; df_product['ProductModel_Suffix'] = model_suffix
+            
+#         specs = [];
+#         for item in BASE_MEASUREMENTS:
+#             # 원본 로직 유지: Min/Max 값으로 스펙 DF 생성
+#             min_col = f'PcbMin{item[3:]}'; max_col = f'PcbMax{item[3:]}'
+#             if min_col in df.columns and max_col in df.columns:
+#                 min_val = df[min_col].dropna().iloc[0] if not df[min_col].dropna().empty else np.nan
+#                 max_val = df[max_col].dropna().iloc[0] if not df[max_col].dropna().empty else np.nan
+#                 specs.append({'TestItemName': item, 'MinLimit': min_val, 'MaxLimit': max_val})
+#         df_spec = pd.DataFrame(specs)
+        
+#         # 4. TEST_HISTORY DataFrame 생성
+#         history_cols_base = ['Unnamed: 0', 'SNumber', 'Stamp', 'ICount', 'PcbStartTime', 'PcbStopTime', 'PcbPass']
+#         # PcbMaxIrPwr 값을 추출해야 함
+#         valid_history_cols = [col for col in history_cols_base if col in df.columns] + [col for col in BASE_MEASUREMENTS if col in df.columns]
+        
+#         # PcbMaxIrPwr은 PC_Code로 사용
+#         if 'PcbMaxIrPwr' in df.columns: valid_history_cols.append('PcbMaxIrPwr') 
+
+#         df_history = df[list(set(valid_history_cols))].copy()
+        
+#         if 'Unnamed: 0' in df_history.columns: df_history.rename(columns={'Unnamed: 0': 'Original_Local_TestID'}, inplace=True)
+#         df_history['TestWeek'] = test_week 
+#         column_mapping = {'Stamp': 'TestStamp'}
+
+#         # 💡 [핵심 개선] PcbMaxIrPwr 값을 'PC_Code'로 TEXT 변환하여 저장
+#         if 'PcbMaxIrPwr' in df_history.columns:
+#             # TEXT 타입에 맞추기 위해 강제 문자열 변환
+#             df_history['PC_Code'] = df_history['PcbMaxIrPwr'].astype(str) 
+#             df_history.drop(columns=['PcbMaxIrPwr'], inplace=True) # 원본 PcbMaxIrPwr 컬럼 삭제
+#         else:
+#              df_history['PC_Code'] = 'UNKNOWN' # PcbMaxIrPwr이 없으면 UNKNOWN으로 처리
+
+#         # 측정값 컬럼명 변경
+#         for col in BASE_MEASUREMENTS: 
+#             if col in df_history.columns: column_mapping[col] = f'{col}_Value'
+            
+#         df_history = df_history.rename(columns=column_mapping)
+#         df_history.dropna(axis=1, how='all', inplace=True)
+        
+#         return df_product, df_spec, df_history
+
+#     except Exception as e:
+#         st.error(f"파일 로드 및 전처리 중 오류 발생: {e}")
+#         return None, None, None
+
 def load_data_with_dynamic_header(uploaded_file, test_week):
     """ 동적 헤더 탐색 및 데이터 전처리 후 DataFrame 반환 """
     try:
@@ -203,7 +275,6 @@ def load_data_with_dynamic_header(uploaded_file, test_week):
             
         specs = [];
         for item in BASE_MEASUREMENTS:
-            # 원본 로직 유지: Min/Max 값으로 스펙 DF 생성
             min_col = f'PcbMin{item[3:]}'; max_col = f'PcbMax{item[3:]}'
             if min_col in df.columns and max_col in df.columns:
                 min_val = df[min_col].dropna().iloc[0] if not df[min_col].dropna().empty else np.nan
@@ -213,7 +284,7 @@ def load_data_with_dynamic_header(uploaded_file, test_week):
         
         # 4. TEST_HISTORY DataFrame 생성
         history_cols_base = ['Unnamed: 0', 'SNumber', 'Stamp', 'ICount', 'PcbStartTime', 'PcbStopTime', 'PcbPass']
-        # PcbMaxIrPwr 값을 추출해야 함
+        
         valid_history_cols = [col for col in history_cols_base if col in df.columns] + [col for col in BASE_MEASUREMENTS if col in df.columns]
         
         # PcbMaxIrPwr은 PC_Code로 사용
@@ -221,17 +292,20 @@ def load_data_with_dynamic_header(uploaded_file, test_week):
 
         df_history = df[list(set(valid_history_cols))].copy()
         
+        # 🚨 [핵심 수정 부분] history_pk 필드가 실수로 남아있다면 드롭 (AUTOINCREMENT를 위해 필요)
+        if 'History_PK' in df_history.columns:
+            df_history.drop(columns=['History_PK'], inplace=True)
+            
         if 'Unnamed: 0' in df_history.columns: df_history.rename(columns={'Unnamed: 0': 'Original_Local_TestID'}, inplace=True)
         df_history['TestWeek'] = test_week 
         column_mapping = {'Stamp': 'TestStamp'}
 
-        # 💡 [핵심 개선] PcbMaxIrPwr 값을 'PC_Code'로 TEXT 변환하여 저장
+        # PcbMaxIrPwr 값을 'PC_Code'로 TEXT 변환하여 저장
         if 'PcbMaxIrPwr' in df_history.columns:
-            # TEXT 타입에 맞추기 위해 강제 문자열 변환
             df_history['PC_Code'] = df_history['PcbMaxIrPwr'].astype(str) 
-            df_history.drop(columns=['PcbMaxIrPwr'], inplace=True) # 원본 PcbMaxIrPwr 컬럼 삭제
+            df_history.drop(columns=['PcbMaxIrPwr'], inplace=True)
         else:
-             df_history['PC_Code'] = 'UNKNOWN' # PcbMaxIrPwr이 없으면 UNKNOWN으로 처리
+             df_history['PC_Code'] = 'UNKNOWN'
 
         # 측정값 컬럼명 변경
         for col in BASE_MEASUREMENTS: 
@@ -250,39 +324,84 @@ def load_data_with_dynamic_header(uploaded_file, test_week):
 # 💡 [핵심 개선] 안전한 DB 저장 함수 (INSERT OR IGNORE 사용)
 def save_dataframes_to_db(conn, df_product, df_spec, df_history):
     """ DataFrame들을 DB에 추가/덮어쓰기 합니다. """
-    try:
-        cursor = conn.cursor()
+    # try:
+    #     cursor = conn.cursor()
         
-        # --- 1. PC_CATEGORY 테이블 저장 (INSERT OR IGNORE) ---
-        if 'PC_Code' in df_history.columns:
-            # 고유한 PC_Code 목록 추출 및 문자열로 변환 확인 (이미 load_data_with_dynamic_header에서 처리됨)
-            df_pc_codes = df_history[['PC_Code']].dropna().drop_duplicates()
-            pc_codes_list = df_pc_codes['PC_Code'].tolist()
+    #     # --- 1. PC_CATEGORY 테이블 저장 (INSERT OR IGNORE) ---
+    #     if 'PC_Code' in df_history.columns:
+    #         # 고유한 PC_Code 목록 추출 및 문자열로 변환 확인 (이미 load_data_with_dynamic_header에서 처리됨)
+    #         df_pc_codes = df_history[['PC_Code']].dropna().drop_duplicates()
+    #         pc_codes_list = df_pc_codes['PC_Code'].tolist()
             
-            insert_query_pc = "INSERT OR IGNORE INTO PC_CATEGORY (PC_Code, PC_Name) VALUES (?, ?)"
-            data_to_insert_pc = [
-                (code, f'PC_Code: {code}') # 초기 PC_Name 설정
+    #         insert_query_pc = "INSERT OR IGNORE INTO PC_CATEGORY (PC_Code, PC_Name) VALUES (?, ?)"
+    #         data_to_insert_pc = [
+    #             (code, f'PC_Code: {code}') # 초기 PC_Name 설정
+    #             for code in pc_codes_list
+    #         ]
+            
+    #         cursor.executemany(insert_query_pc, data_to_insert_pc)
+        
+    #     # --- 2. PRODUCT 테이블 저장 (INSERT OR IGNORE) ---
+    #     product_data = df_product.to_dict('records')
+    #     insert_query_product = "INSERT OR IGNORE INTO PRODUCT (SNumber, ProductModel_Name, ProductModel_Suffix) VALUES (?, ?, ?)"
+    #     data_to_insert_product = [
+    #         (d['SNumber'], d['ProductModel_Name'], d['ProductModel_Suffix'])
+    #         for d in product_data
+    #     ]
+    #     cursor.executemany(insert_query_product, data_to_insert_product)
+
+    #     # --- 3. TEST_SPECIFICATION: 규격은 덮어씁니다. (to_sql 사용) ---
+    #     df_spec.to_sql('TEST_SPECIFICATION', conn, if_exists='replace', index=False)
+        
+    #     # --- 4. TEST_HISTORY: 새로운 주차 데이터를 추가합니다. (to_sql 사용) ---
+    #     # History_PK는 auto-increment이므로 append 사용
+    #     df_history.to_sql('TEST_HISTORY', conn, if_exists='append', index=False) 
+            
+    #     conn.commit() # 최종 커밋
+    #     return True, len(df_history)
+    # except Exception as e:
+    #     st.error(f"❌ DB 저장 중 오류 발생: {e}")
+    #     conn.rollback() # 오류 시 롤백
+    #     return False, 0
+
+    try:
+        # 1. PC_CATEGORY 데이터 준비 및 저장 (Raw SQL로 중복 방지)
+        if 'PcbMaxIrPwr_Value' in df_history.columns:
+            # 💡 [핵심 수정]: df_history에서 PC_Code 목록 추출
+            df_pc_codes = df_history[['PcbMaxIrPwr_Value']].dropna().drop_duplicates()
+            
+            # DB PK 타입(TEXT)에 맞추기 위해 강제 문자열 변환
+            # (만약 float 값이라면 .0이 붙을 수 있으니 포매팅 필요 - 일단 .astype(str)로 진행)
+            pc_codes_list = df_pc_codes['PcbMaxIrPwr_Value'].astype(str).tolist()
+
+            cursor = conn.cursor()
+            
+            # 💡 Raw SQL: INSERT OR IGNORE를 사용하여 PC_Code 중복 시 무시
+            # PC_Name도 초기 값으로 설정 (이미 존재하는 코드의 Name은 변경하지 않음)
+            insert_query = "INSERT OR IGNORE INTO PC_CATEGORY (PC_Code, PC_Name) VALUES (?, ?)"
+            
+            # 모든 고유 코드에 대해 실행
+            data_to_insert = [
+                (code, f'PC_Code: {code}') # (PC_Code, PC_Name) 튜플 리스트
                 for code in pc_codes_list
             ]
             
-            cursor.executemany(insert_query_pc, data_to_insert_pc)
-        
-        # --- 2. PRODUCT 테이블 저장 (INSERT OR IGNORE) ---
-        product_data = df_product.to_dict('records')
-        insert_query_product = "INSERT OR IGNORE INTO PRODUCT (SNumber, ProductModel_Name, ProductModel_Suffix) VALUES (?, ?, ?)"
-        data_to_insert_product = [
-            (d['SNumber'], d['ProductModel_Name'], d['ProductModel_Suffix'])
-            for d in product_data
-        ]
-        cursor.executemany(insert_query_product, data_to_insert_product)
+            cursor.executemany(insert_query, data_to_insert)
+            conn.commit() # 💡 PC_CATEGORY 저장 후 즉시 커밋
+            
+            st.info(f"PC_CATEGORY 테이블에 {len(data_to_insert)}개 코드 중 새로운 코드 추가 완료.")
 
-        # --- 3. TEST_SPECIFICATION: 규격은 덮어씁니다. (to_sql 사용) ---
+        # 2. PRODUCT: 새로운 제품만 추가
+        # to_sql('append')는 PK 중복 시 오류를 발생시키므로, 'append' 대신 'replace' 또는 Raw SQL을 사용해야 안전하지만, 
+        # 현재 코드의 의도를 살려 append 유지 (사용자가 중복 데이터 업로드 시 DB 오류가 발생할 수 있음)
+        df_product.to_sql('PRODUCT', conn, if_exists='append', index=False)
+        
+        # 3. TEST_SPECIFICATION: 규격은 덮어씁니다.
         df_spec.to_sql('TEST_SPECIFICATION', conn, if_exists='replace', index=False)
         
-        # --- 4. TEST_HISTORY: 새로운 주차 데이터를 추가합니다. (to_sql 사용) ---
-        # History_PK는 auto-increment이므로 append 사용
-        df_history.to_sql('TEST_HISTORY', conn, if_exists='append', index=False) 
-            
+        # 4. TEST_HISTORY: 기존 데이터에 새로운 주차 데이터를 추가합니다.
+        df_history.to_sql('TEST_HISTORY', conn, if_exists='append', index=True, index_label='History_PK')
+        
         conn.commit() # 최종 커밋
         return True, len(df_history)
     except Exception as e:
